@@ -7,11 +7,16 @@ const { Pool } = require('pg');
 const app    = express();
 const PORT   = process.env.PORT || 3000;
 const ADMIN_PW = process.env.ADMIN_PASSWORD;
+// 32-byte key (base64) for the waitlist contact details; without it sign-ups are refused
+const WAITLIST_KEY = Buffer.from(process.env.WAITLIST_KEY || '', 'base64');
+const waitlistForm = require('./public/waitlist-form.json');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
 });
+// Neon drops idle connections; an unhandled pool 'error' event would crash the process
+pool.on('error', e => console.error('Idle DB client error:', e));
 
 async function initDb() {
   await pool.query(`
@@ -26,26 +31,40 @@ async function initDb() {
       email        TEXT    UNIQUE NOT NULL,
       submitted_at INTEGER NOT NULL
     );
+    -- No timestamp and a random id: the order of sign-ups must not be linkable
+    -- to the public confession times (the waitlist button appears right after confessing)
+    CREATE TABLE IF NOT EXISTS waitlist (
+      id              TEXT    PRIMARY KEY,
+      answers         JSONB   NOT NULL,
+      contact_enc     TEXT    NOT NULL,
+      contact_hash    TEXT    NOT NULL UNIQUE,
+      submitted_on    DATE    NOT NULL DEFAULT CURRENT_DATE
+    );
   `);
 }
 
-// Run once on module load — works for both local and Vercel serverless
-const dbReady = initDb();
+// A failed init is forgotten so the next request retries; a cached rejection 503s a warm instance until redeploy
+let dbReady = null;
+function ensureDb() {
+  dbReady ??= initDb().catch(e => { dbReady = null; throw e; });
+  return dbReady;
+}
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // All routes wait for DB to be ready before proceeding
 app.use(async (req, res, next) => {
-  try { await dbReady; next(); }
+  try { await ensureDb(); next(); }
   catch (e) { console.error('DB init error:', e); res.status(503).json({ error: 'Database unavailable' }); }
 });
 
 // ── Admin auth ──────────────────────────────────────────────────────────────
 // Token is derived from the password so any serverless instance can validate it
-// without needing shared in-memory state.
-function adminToken() {
-  return crypto.createHmac('sha256', ADMIN_PW || '').update('admin-session').digest('hex');
+// without needing shared in-memory state. It carries its expiry, so a copied cookie stops working.
+const ADMIN_SESSION_SECONDS = 8 * 60 * 60;
+function adminToken(expires) {
+  return expires + '.' + crypto.createHmac('sha256', ADMIN_PW || '').update('admin-session:' + expires).digest('hex');
 }
 
 function getCookie(req, name) {
@@ -55,14 +74,23 @@ function getCookie(req, name) {
 }
 
 function adminAuth(req, res, next) {
-  if (ADMIN_PW && getCookie(req, 'admin_token') === adminToken()) return next();
+  const token = getCookie(req, 'admin_token') || '';
+  const expires = Number(token.split('.')[0]);
+  const expected = Buffer.from(adminToken(expires));
+  const given = Buffer.from(token);
+  const valid = ADMIN_PW && expires > Date.now() / 1000 &&
+    expected.length === given.length && crypto.timingSafeEqual(expected, given);
+  if (valid) return next();
   res.status(401).json({ error: 'Unauthorized' });
 }
 
 // ── Public routes ────────────────────────────────────────────────────────────
 app.get('/api/whoami', (req, res) => {
   const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress;
-  res.json({ ip });
+  // Vercel adds these location headers; they are missing in local dev
+  const city    = decodeURIComponent(req.headers['x-vercel-ip-city'] || '');
+  const country = req.headers['x-vercel-ip-country'] || '';
+  res.json({ ip, city, country });
 });
 
 app.get('/wall', (req, res) => {
@@ -97,7 +125,7 @@ app.post('/api/confession', async (req, res) => {
 app.get('/api/confessions', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, text, submitted_at FROM confessions WHERE approved = TRUE ORDER BY submitted_at DESC'
+      'SELECT id, text, submitted_at FROM confessions ORDER BY submitted_at DESC'
     );
     res.json(rows);
   } catch (e) {
@@ -106,15 +134,93 @@ app.get('/api/confessions', async (req, res) => {
   }
 });
 
-app.post('/api/email', async (req, res) => {
-  const email = (req.body.email || '').trim().toLowerCase();
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ error: 'Invalid email' });
+// ── Waitlist ─────────────────────────────────────────────────────────────────
+// Answer to "Where should we contact you?" and the field that holds the contact detail
+const CONTACT_QUESTION = '644rl9tj66i';
+const CONTACT_FIELDS = { Signal: '5rj5616rdvn', Telegram: '7nip27pk43v', 'E-Mail': '43ss8i8ulhr' };
+// Telegram and Signal accept any form (@name, name, t.me/…, signal.me/…, phone number); e-mail needs an @ and a dot
+const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
+
+// Like page 3: only visible questions count; returns the cleaned answers or null
+function validateWaitlist(answers) {
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) return null;
+  const clean = {};
+  const valuesOf = id => {
+    const v = clean[id];
+    return v === undefined ? [] : [].concat(v);
+  };
+  let valid = true;
+
+  function visit(id) {
+    const item = waitlistForm.form[id];
+    if (item.type === 'md') return;
+    if (item.type === 'section') {
+      const shown = item.opts.when.some(group => group.every(c => valuesOf(String(c.q)).includes(c.v)));
+      if (shown) item.opts.questions.forEach(visit);
+      return;
+    }
+    const given = answers[id];
+    const options = (item.opts.values || []).map(o => o.v);
+    let value;
+    if (item.type === 'input') {
+      value = typeof given === 'string' ? given.trim() : '';
+      // Postgres JSONB can't store \u0000
+      if (value.length > 200 || value.includes('\u0000')) valid = false;
+    } else if (item.type === 'radio') {
+      value = options.includes(given) ? given : '';
+      if (given !== undefined && !value) valid = false;
+    } else {
+      value = Array.isArray(given) ? [...new Set(given)] : [];
+      if (given !== undefined && !Array.isArray(given)) valid = false;
+      if (value.some(v => !options.includes(v)) || (item.opts.max && value.length > item.opts.max)) valid = false;
+    }
+    const empty = Array.isArray(value) ? !value.length : !value;
+    if (empty && item.opts.required) valid = false;
+    if (!empty) clean[id] = value;
   }
+
+  waitlistForm.order.forEach(visit);
+  return valid ? clean : null;
+}
+
+function encryptContact(text) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', WAITLIST_KEY, iv);
+  const enc = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+  return [iv, cipher.getAuthTag(), enc].map(b => b.toString('base64')).join('.');
+}
+
+// Same contact on the same channel always gives the same hash, so a second sign-up is skipped
+const CONTACT_HASH_KEY = crypto.createHmac('sha256', WAITLIST_KEY).update('waitlist-contact-hash').digest();
+function contactHash(channel, contact) {
+  // "@Alice", "alice" and "https://t.me/alice" count as the same contact
+  const normalized = contact.trim().toLowerCase()
+    .replace(/^https?:\/\//, '').replace(/^(t|telegram|signal)\.me\//, '').replace(/^@/, '');
+  return crypto.createHmac('sha256', CONTACT_HASH_KEY).update(channel + ':' + normalized).digest('hex');
+}
+
+app.post('/api/waitlist', async (req, res) => {
+  if (WAITLIST_KEY.length !== 32) {
+    console.error('WAITLIST_KEY env var is missing or not 32 bytes.');
+    return res.status(503).json({ error: 'Waitlist unavailable' });
+  }
+  const answers = validateWaitlist(req.body.answers);
+  const channel = answers && answers[CONTACT_QUESTION];
+  const contactField = CONTACT_FIELDS[channel];
+  if (!contactField || !answers[contactField]) {
+    return res.status(400).json({ error: 'Invalid sign-up' });
+  }
+  const contact = answers[contactField];
+  if (channel === 'E-Mail' && !EMAIL_PATTERN.test(contact)) {
+    return res.status(400).json({ error: 'Please check your e-mail address.' });
+  }
+  delete answers[contactField];
   try {
+    // A repeat sign-up still gets ok, so the form doesn't reveal who is already on the list
     await pool.query(
-      'INSERT INTO emails (email, submitted_at) VALUES ($1, $2) ON CONFLICT (email) DO NOTHING',
-      [email, Math.floor(Date.now() / 1000)]
+      `INSERT INTO waitlist (id, answers, contact_enc, contact_hash)
+       VALUES ($1, $2, $3, $4) ON CONFLICT (contact_hash) DO NOTHING`,
+      [crypto.randomUUID(), answers, encryptContact(contact), contactHash(channel, contact)]
     );
     res.json({ ok: true });
   } catch (e) {
@@ -128,11 +234,16 @@ app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
-app.post('/api/admin/login', (req, res) => {
+app.post('/api/admin/login', async (req, res) => {
   if (!ADMIN_PW || (req.body.password || '') !== ADMIN_PW) {
+    // Slows down password guessing
+    await new Promise(resolve => setTimeout(resolve, 1000));
     return res.status(401).json({ error: 'Wrong password' });
   }
-  res.setHeader('Set-Cookie', `admin_token=${adminToken()}; HttpOnly; Path=/; SameSite=Strict`);
+  const expires = Math.floor(Date.now() / 1000) + ADMIN_SESSION_SECONDS;
+  const secure = req.secure || req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+  res.setHeader('Set-Cookie',
+    `admin_token=${adminToken(expires)}; HttpOnly; Path=/; SameSite=Strict; Max-Age=${ADMIN_SESSION_SECONDS}${secure}`);
   res.json({ ok: true });
 });
 
@@ -148,22 +259,6 @@ app.get('/api/admin/confessions', adminAuth, async (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/admin/approve/:id', adminAuth, async (req, res) => {
-  const { rowCount } = await pool.query(
-    'UPDATE confessions SET approved = TRUE WHERE id = $1', [parseInt(req.params.id)]
-  );
-  if (!rowCount) return res.status(404).json({ error: 'Not found' });
-  res.json({ ok: true });
-});
-
-app.post('/api/admin/unapprove/:id', adminAuth, async (req, res) => {
-  const { rowCount } = await pool.query(
-    'UPDATE confessions SET approved = FALSE WHERE id = $1', [parseInt(req.params.id)]
-  );
-  if (!rowCount) return res.status(404).json({ error: 'Not found' });
-  res.json({ ok: true });
-});
-
 app.delete('/api/admin/confession/:id', adminAuth, async (req, res) => {
   const { rowCount } = await pool.query(
     'DELETE FROM confessions WHERE id = $1', [parseInt(req.params.id)]
@@ -174,26 +269,136 @@ app.delete('/api/admin/confession/:id', adminAuth, async (req, res) => {
 
 app.get('/api/admin/download', adminAuth, async (req, res) => {
   const confessions = await pool.query('SELECT * FROM confessions ORDER BY id');
-  const emails      = await pool.query('SELECT * FROM emails ORDER BY id');
   res.setHeader('Content-Disposition', 'attachment; filename="confessions.json"');
-  res.json({ confessions: confessions.rows, emails: emails.rows });
+  res.json({ confessions: confessions.rows });
 });
 
-app.get('/api/admin/emails', adminAuth, async (req, res) => {
-  const { rows } = await pool.query('SELECT email, submitted_at FROM emails ORDER BY id');
-  const csv = ['email,submitted_at', ...rows.map(e => `${e.email},${e.submitted_at}`)].join('\n');
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename="emails.csv"');
-  res.send(csv);
+// Questions for admin and CSV, labelled so "Please specify" says what it belongs to
+const waitlistQuestions = [];
+// Drops the "(If you're not sure, …)" / "(if you're unsure, …)" hints from version and chip questions
+const shortLabel = q => q.replace(/\s*\(if you[^)]*\)/i, '');
+(function collect(ids, openedBy) {
+  ids.forEach(id => {
+    const item = waitlistForm.form[id];
+    if (item.type === 'section') {
+      const last = (item.opts.when?.[0] || []).at(-1);
+      const opener = last && waitlistForm.form[last.q];
+      return collect(item.opts.questions || [], opener ? shortLabel(opener.q) : null);
+    }
+    // Skips notes, the contact (own columns) and the consent question, whose only answer is "I understand"
+    if (item.type === 'md' || id === CONTACT_QUESTION || Object.values(CONTACT_FIELDS).includes(id)) return;
+    if (item.type === 'radio' && item.opts.values.length === 1) return;
+    if (waitlistQuestions.some(q => q.id === id)) return;
+    const text = shortLabel(item.q);
+    waitlistQuestions.push({ id, label: item.type === 'input' && openedBy ? openedBy + ' — ' + text : text });
+  });
+})(waitlistForm.order, null);
+
+function decryptContact(stored) {
+  try {
+    const [iv, tag, enc] = stored.split('.').map(p => Buffer.from(p, 'base64'));
+    const decipher = crypto.createDecipheriv('aes-256-gcm', WAITLIST_KEY, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(enc), decipher.final()]).toString('utf8');
+  } catch {
+    return '(cannot decrypt)';
+  }
+}
+
+// Newest day first; within a day the random id decides, so the list doesn't show the sign-up order
+async function loadSignups() {
+  const { rows } = await pool.query(
+    "SELECT id, answers, contact_enc, to_char(submitted_on, 'YYYY-MM-DD') AS sent_on FROM waitlist ORDER BY submitted_on DESC, id"
+  );
+  return rows.map(r => ({
+    id: r.id,
+    sent_on: r.sent_on,
+    contact_channel: r.answers[CONTACT_QUESTION],
+    contact: decryptContact(r.contact_enc),
+    answers: r.answers,
+  }));
+}
+
+app.get('/api/admin/waitlist', adminAuth, async (req, res) => {
+  try {
+    res.json({ questions: waitlistQuestions, signups: await loadSignups() });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Quoted cells; a leading = + - @ tab or CR gets a ' so spreadsheets don't run it as a formula,
+// except a plain @handle or +phone number in the Contact column
+function csvCell(value, isContact) {
+  let text = Array.isArray(value) ? value.join('; ') : String(value ?? '');
+  const plainContact = isContact && /^(@\w+|\+[\d ()-]+)$/.test(text);
+  if (/^[=+\-@\t\r]/.test(text) && !plainContact) text = "'" + text;
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+app.get('/api/admin/waitlist.csv', adminAuth, async (req, res) => {
+  let signups;
+  try {
+    signups = await loadSignups();
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+  const header = ['Contact via', 'Contact', ...waitlistQuestions.map(q => q.label)];
+  const lines = signups.map(s => [
+    s.contact_channel,
+    s.contact,
+    ...waitlistQuestions.map(q => s.answers[q.id]),
+  ]);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="waitlist.csv"');
+  res.send('\uFEFF' + [header, ...lines].map(row => row.map((cell, i) => csvCell(cell, i === 1)).join(',')).join('\r\n'));
+});
+
+app.delete('/api/admin/waitlist/:id', adminAuth, async (req, res) => {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+  try {
+    const { rowCount } = await pool.query(
+      'DELETE FROM waitlist WHERE id = $1', [req.params.id]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 if (!ADMIN_PW) {
   console.error('WARNING: ADMIN_PASSWORD env var is not set.');
 }
+if (WAITLIST_KEY.length !== 32) {
+  console.error('WARNING: WAITLIST_KEY env var is missing or not 32 bytes of base64 (use openssl rand -base64 32). Waitlist sign-ups will be refused.');
+}
+// The ids above come from the CryptPad export; a new export changes them, so say so at startup
+{
+  const problems = [];
+  const channels = (waitlistForm.form[CONTACT_QUESTION]?.opts?.values || []).map(o => o.v);
+  for (const [channel, id] of Object.entries(CONTACT_FIELDS)) {
+    if (!channels.includes(channel)) problems.push(`"${channel}" is not an option of ${CONTACT_QUESTION}`);
+    if (waitlistForm.form[id]?.type !== 'input') problems.push(`contact field ${id} is missing`);
+  }
+  for (const [id, item] of Object.entries(waitlistForm.form)) {
+    const rulesOk = item.type !== 'section' || (Array.isArray(item.opts.when) &&
+      item.opts.when.every(group => group.every(c => c.is === 1 && waitlistForm.form[c.q])));
+    if (!rulesOk) problems.push(`section ${id} uses show/hide rules the server doesn't handle`);
+  }
+  if (problems.length) {
+    console.error('WARNING: waitlist-form.json does not match server.js, sign-ups will fail: ' + problems.join('; '));
+  }
+}
 
 // Local dev: listen directly. Vercel imports this file and uses module.exports.
 if (require.main === module) {
-  dbReady
+  ensureDb()
     .then(() => app.listen(PORT, () => {
       console.log(`Running on http://localhost:${PORT}`);
       console.log(`Admin panel: http://localhost:${PORT}/admin`);

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Privacy Confession</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500&family=IBM+Plex+Mono:wght@700&display=swap">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -63,45 +64,161 @@
       width: 100%;
     }
 
-    .label {
-      font-size: 0.7rem;
-      color: #00b330;
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
-      margin-bottom: 1.5rem;
+    /* the web as we know it: page 1, until a confession is sent */
+    body.web {
+      font-family: 'Google Sans', Arial, sans-serif;
+      background: #f0f0f0;
+      color: #1f1f1f;
+      justify-content: flex-start;
+      overflow-y: auto;
+      padding: 6rem 1rem 10rem;
     }
-    .label::before { content: '// '; }
+    body.web::after, body.web header, body.web footer { display: none; }
+    body:not(.web) .web-only { display: none; }
+
+    .web-logo {
+      position: absolute;
+      top: 1.5rem;
+      left: 0;
+      right: 0;
+      white-space: nowrap;
+      font-family: 'IBM Plex Mono', 'Courier New', monospace;
+      font-weight: 700;
+      font-size: 1.25rem;
+      line-height: 1;
+      text-align: center;
+      color: #2f5bc9;
+    }
+
+    .web-title {
+      font-size: 2.2rem;
+      white-space: nowrap;
+      font-weight: 400;
+      line-height: 1.15;
+      text-align: center;
+      margin-bottom: 1.2rem;
+    }
 
     p.sub {
-      font-size: 0.85rem;
-      color: #00b330;
-      margin-bottom: 1.8rem;
-      line-height: 1.6;
+      font-size: 1.05rem;
+      color: #444;
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+      text-align: center;
     }
-    p.sub::before { content: '> '; }
 
     textarea {
       width: 100%;
       height: 160px;
-      background: #000;
-      border: 1px solid #007a28;
-      color: #00ff41;
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 0.95rem;
+      background: #fff;
+      border: 1px solid #c4c4c4;
+      border-radius: 8px;
+      color: #1f1f1f;
+      font-family: inherit;
+      font-size: 1rem;
       padding: 0.75rem;
       resize: vertical;
       outline: none;
-      line-height: 1.7;
+      line-height: 1.5;
     }
-    textarea::placeholder { color: #007a28; }
-    textarea:focus { border-color: #00ff41; }
+    textarea::placeholder { color: #8a8a8a; }
+    textarea:focus { border-color: #2f5bc9; }
 
     .counter {
       text-align: right;
-      font-size: 0.7rem;
-      color: #007a28;
-      letter-spacing: 0.1em;
-      margin: 0.4rem 0 1.4rem;
+      font-size: 0.75rem;
+      color: #666;
+      margin: 0.4rem 0 1.2rem;
+    }
+
+    #form-view button {
+      background: #1f1f1f;
+      color: #fff;
+      border: 0;
+      border-radius: 999px;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 500;
+      letter-spacing: normal;
+      text-transform: none;
+    }
+    #form-view button:hover,
+    #form-view button:disabled:hover { background: #2f5bc9; color: #fff; }
+
+    .ad-col {
+      position: fixed;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .ad {
+      width: 140px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      padding: 1rem;
+      background: #fff;
+      border: 1px solid #d9d9d9;
+      font-size: 0.8rem;
+      line-height: 1.35;
+    }
+    .ad-left { left: 1rem; }
+    .ad-right { right: 1rem; }
+    .ad-tag { font-size: 0.6rem; color: #8a8a8a; text-transform: uppercase; letter-spacing: 0.05em; }
+    .ad strong { font-size: 1.1rem; line-height: 1.2; }
+    .ad-cta { padding: 0.5rem; border-radius: 4px; background: #ffd400; font-weight: 500; text-align: center; }
+
+    .cookie {
+      position: fixed;
+      left: 1rem;
+      right: 1rem;
+      bottom: 1rem;
+      z-index: 5;
+      max-width: 720px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem 1rem;
+      padding: 1rem 1.25rem;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+    .cookie p { flex: 1 1 280px; }
+    .cookie button {
+      width: auto;
+      padding: 0.55rem 1.1rem;
+      border: 1px solid #2f5bc9;
+      border-radius: 999px;
+      background: #2f5bc9;
+      color: #fff;
+      font-family: inherit;
+      font-size: 0.85rem;
+      letter-spacing: normal;
+      text-transform: none;
+    }
+    .cookie button:hover { background: #2549a8; color: #fff; }
+    .cookie button.cookie-reject { background: transparent; color: #2f5bc9; }
+
+    @media (min-width: 768px) {
+      body.web { padding-left: 170px; padding-right: 170px; }
+    }
+    @media (max-width: 767px) {
+      .ad-left, .ad:not(.ad-keep) { display: none; }
+      .ad-col { position: static; transform: none; width: 100%; max-width: 520px; margin-bottom: 1.5rem; }
+      .ad-keep { width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; padding: 0.6rem 0.8rem; }
+      .ad-keep .ad-tag { width: 100%; }
+      .ad-keep strong { font-size: 1rem; }
+      .ad-keep .ad-cta { margin-left: auto; }
+      body.web:has(textarea:focus) .ad-col { display: none; }
+      .web-title { font-size: 6.4vw; }
+      /* a phone keyboard pushes the banner up over the box */
+      body.web:has(textarea:focus) .cookie { display: none; }
     }
 
     button {
@@ -178,6 +295,12 @@
       word-break: break-all;
     }
 
+    @keyframes blink-green-white {
+      0%   { color: #00ff41; }
+      50%  { color: #fff; }
+    }
+    .data-val.blink { font-weight: bold; animation: blink-green-white 1s steps(1) infinite; }
+
     .confirm-cta {
       font-size: 1rem;
       color: #00ff41;
@@ -188,54 +311,134 @@
     }
     .confirm-cta::before { content: '> '; color: #005c1f; }
 
-    #email-signup {
+    #waitlist-signup {
       margin-top: 2rem;
       opacity: 0;
       transition: opacity 0.6s ease;
     }
-    .email-label {
+    .waitlist-label {
       font-size: 0.7rem;
       color: #00b330;
       letter-spacing: 0.2em;
       text-transform: uppercase;
       margin-bottom: 0.8rem;
     }
-    .email-label::before { content: '// '; }
-    .email-sub {
-      font-size: 0.8rem;
-      color: #005c1f;
-      letter-spacing: 0.05em;
-      margin-bottom: 1rem;
-      line-height: 1.6;
+    .waitlist-label::before { content: '// '; }
+
+    /* private web: Gnosis VPN brand (colours and font from the website's brand kit) */
+    @font-face {
+      font-family: 'Unica77 LL';
+      src: url('/fonts/Unica77LL-Regular.otf') format('opentype');
+      font-weight: 400;
+      font-display: swap;
     }
-    .email-row {
+    @font-face {
+      font-family: 'Unica77 LL';
+      src: url('/fonts/Unica77LL-Bold.otf') format('opentype');
+      font-weight: 700;
+      font-display: swap;
+    }
+    #private-view {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      overflow-y: auto;
+      padding: 2rem 1rem;
+      background: linear-gradient(180deg, #331bce 39.6%, #ffffa0 100%);
+      color: #f6f6f6;
+      font-family: 'Unica77 LL', system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .private-inner {
+      max-width: 720px;
+      margin: 0 auto;
       display: flex;
-      gap: 0.6rem;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+      text-align: center;
     }
-    .email-row input[type="email"] {
-      flex: 1;
-      background: #000;
-      border: 1px solid #007a28;
-      color: #00ff41;
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 0.85rem;
-      padding: 0.6rem 0.75rem;
-      outline: none;
+    .private-logo { height: 32px; }
+    #private-form {
+      width: 100%;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
     }
-    .email-row input[type="email"]:focus { border-color: #00ff41; }
-    .email-row input[type="email"]::placeholder { color: #007a28; }
-    .email-row button {
+    #private-form { display: flex; }
+    #private-view h2 {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .form-card {
+      position: relative;
+      width: 100%;
+      background: #fff;
+      border-radius: 32px;
+      overflow: hidden;
+      padding: 2rem 1.5rem;
+      color: #1f1f1f;
+      text-align: left;
+    }
+    #waitlist-form { display: flex; flex-direction: column; gap: 1.5rem; }
+    .wf-section { display: flex; flex-direction: column; gap: 1.5rem; }
+    .wf-section[hidden] { display: none; }
+    .wf-note { font-size: 0.95rem; line-height: 1.5; }
+    .wf-note p + p { margin-top: 0.75rem; }
+    .wf-q { border: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+    .wf-q legend, .wf-q > span { font-weight: 700; line-height: 1.4; margin-bottom: 0.5rem; }
+    .wf-q label.wf-opt {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      min-height: 44px;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #d9d7ef;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+    .wf-q input[type=radio], .wf-q input[type=checkbox] { width: 20px; height: 20px; accent-color: #4336de; flex-shrink: 0; }
+    .wf-q input[type=text] {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #d9d7ef;
+      border-radius: 12px;
+      font: inherit;
+    }
+    .wf-q.wf-missing legend, .wf-q.wf-missing > span { color: #d0021b; }
+    .wf-q.wf-missing label.wf-opt, .wf-q.wf-missing input[type=text] { border-color: #d0021b; }
+    #wf-error { background: #fff; color: #d0021b; font-weight: 700; padding: 0.5rem 1rem; border-radius: 12px; }
+    #private-view button {
       width: auto;
-      padding: 0.6rem 1rem;
-      font-size: 0.8rem;
+      padding: 0.9rem 3rem;
+      background: #4336de;
+      color: #fff;
+      border: 0;
+      border-radius: 999px;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: normal;
+      text-transform: none;
     }
-    #email-msg {
-      margin-top: 0.75rem;
-      font-size: 0.75rem;
-      letter-spacing: 0.08em;
+    #private-view button:hover { background: #3b30c4; color: #fff; }
+    #private-view button#form-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      border-radius: 50%;
+      background: #f0effa;
+      color: #331bce;
+      font-size: 1.5rem;
+      line-height: 1;
     }
-    #email-msg.ok  { color: #00b330; }
-    #email-msg.err { color: #ff4141; }
+    #private-view button#form-close:hover { background: #e1def8; }
+    #waitlist-form > :first-child { padding-right: 2.5rem; }
 
     footer {
       position: fixed;
@@ -251,47 +454,87 @@
     }
   </style>
 </head>
-<body>
+<body class="web">
+  <div class="web-logo web-only">Privacy Confessional</div>
+
+  <div class="ad-col ad-left web-only" aria-hidden="true">
+    <aside class="ad">
+      <span class="ad-tag">Sponsored</span>
+      <strong>Hot singles in your IP range</strong>
+      <span>They already know where you live.</span>
+      <span class="ad-cta">Meet them</span>
+    </aside>
+    <aside class="ad">
+      <span class="ad-tag">Ad · Why am I seeing this?</span>
+      <strong>Your insurance quote changed</strong>
+      <span>You searched "chest pain" at 2 a.m.</span>
+      <span class="ad-cta">See new price</span>
+    </aside>
+  </div>
+  <div class="ad-col ad-right web-only" aria-hidden="true">
+    <aside class="ad ad-keep">
+      <span class="ad-tag">Ad · Why am I seeing this?</span>
+      <strong>Free VPN. Forever.*</strong>
+      <span>*We sell your browsing history instead.</span>
+      <span class="ad-cta">Install now</span>
+    </aside>
+    <aside class="ad">
+      <span class="ad-tag">Sponsored</span>
+      <strong>Free conference Wi-Fi</strong>
+      <span>Free for you. Not for your data.</span>
+      <span class="ad-cta">Connect</span>
+    </aside>
+  </div>
+
   <header>
-    <h1>Make your Privacy Confession</h1>
+    <h1 id="page-title">Make your Privacy Confession</h1>
     <span id="clock"></span>
   </header>
 
   <div class="card">
 
     <div id="form-view">
-      <div class="label">anonymous transmission</div>
+      <h2 class="web-title">Make your Privacy Confession</h2>
       <p class="sub">Input your privacy sin below.<br>We won't ask who you are. We just want to know what you did.</p>
       <textarea id="text" maxlength="1000" placeholder=""></textarea>
       <div class="counter"><span id="count">0</span> / 1000 chars</div>
-      <button id="submit-btn">[ confess ]</button>
+      <button id="submit-btn">Confess</button>
     </div>
 
     <div id="confirm-view">
       <div class="confirm-label">transmission received</div>
       <p class="confirm-intro">You typed this in private.<br>But you left a trail.</p>
       <div class="data-table" id="data-table"></div>
-      <p class="confirm-cta" id="confirm-cta">That's why Gnosis VPN exists.</p>
+      <p class="confirm-cta" id="confirm-cta">That's why Gnosis VPN exists.<br>Change your connection to privacy.</p>
 
-      <div id="email-signup">
-        <div class="email-label">get a free secret code</div>
-        <p class="email-sub">Try Gnosis VPN Beta on your own device. Enter your email and we'll send you a code. We won't use your email address for anything else.</p>
-        <div class="email-row">
-          <input type="email" id="email-input" placeholder="your@email.com" autocomplete="email">
-          <button id="email-btn">[ send ]</button>
-        </div>
-        <p id="email-msg"></p>
-        <button id="no-vpn-btn" style="margin-top:1.2rem; border-color:#003b14; color:#005c1f; font-size:0.72rem;">[ I don't want to test Gnosis VPN Beta ]</button>
+      <div id="waitlist-signup">
+        <div class="waitlist-label">Join the waitlist and get early access to Gnosis VPN on November 16th.</div>
+        <button id="waitlist-btn">[ join waitlist ]</button>
+        <button id="no-vpn-btn" style="margin-top:1.2rem; border-color:#003b14; color:#005c1f; font-size:0.72rem;">[ I don't want early access ]</button>
       </div>
     </div>
 
-    <div id="email-confirm-view" style="display:none;">
-      <div class="confirm-label">secret code requested</div>
-      <p class="confirm-intro">Check your inbox soon.</p>
-      <p class="confirm-cta" style="opacity:1; margin-bottom:1rem;">We won't use your email address for anything else.</p>
-      <p id="email-confirm-countdown" style="font-size:0.7rem; color:#005c1f; letter-spacing:0.1em;"></p>
-    </div>
+  </div>
 
+  <div class="cookie web-only" id="cookie-banner">
+    <p>We value your privacy. That's why we and our 1,342 partners store and read information on your device.</p>
+    <button class="cookie-reject">Reject all</button>
+    <button>Accept all</button>
+  </div>
+
+  <div id="private-view">
+    <div class="private-inner">
+      <img class="private-logo" src="/gnosis_vpn.svg" alt="Gnosis VPN">
+      <div id="private-form">
+        <h2>Change your connection to privacy</h2>
+        <div class="form-card">
+          <button id="form-close" type="button" aria-label="Close the form and go back to the start">×</button>
+          <form id="waitlist-form" novalidate></form>
+        </div>
+        <p id="wf-error" hidden></p>
+        <button id="send-btn">Send</button>
+      </div>
+    </div>
   </div>
 
   <footer>
@@ -339,31 +582,38 @@
     });
 
     async function showConfirmView() {
-      let ip = 'resolving...';
+      let me = { ip: 'resolving...' };
       try {
         const r = await fetch('/api/whoami');
-        ip = (await r.json()).ip;
+        me = await r.json();
       } catch {}
 
       const table = document.getElementById('data-table');
       table.innerHTML = '';
 
-      const row = document.createElement('div');
-      row.className = 'data-row';
-      const k = document.createElement('span');
-      k.className = 'data-key';
-      k.textContent = 'IP address';
-      const v = document.createElement('span');
-      v.className = 'data-val';
-      v.textContent = ip;
-      row.append(k, v);
-      table.appendChild(row);
+      function addRow(key, val, valClass) {
+        const row = document.createElement('div');
+        row.className = 'data-row';
+        const k = document.createElement('span');
+        k.className = 'data-key';
+        k.textContent = key;
+        const v = document.createElement('span');
+        v.className = valClass;
+        v.textContent = val;
+        row.append(k, v);
+        table.appendChild(row);
+      }
+
+      addRow('IP address', me.ip, 'data-val blink');
+      const country = me.country ? new Intl.DisplayNames(['en'], { type: 'region' }).of(me.country) : '';
+      const place = [me.city, country].filter(Boolean).join(', ');
+      if (place) addRow('City / country', place, 'data-val blink');
 
       setTimeout(() => {
         document.getElementById('confirm-cta').style.opacity = '1';
       }, 400);
       setTimeout(() => {
-        document.getElementById('email-signup').style.opacity = '1';
+        document.getElementById('waitlist-signup').style.opacity = '1';
       }, 1100);
     }
 
@@ -382,6 +632,8 @@
           const confirmView = document.getElementById('confirm-view');
           formView.style.display    = 'none';
           confirmView.style.display = 'block';
+          document.body.classList.remove('web');
+          document.getElementById('page-title').textContent = 'You made your privacy confession';
           showConfirmView();
         } else {
           const body = await res.json().catch(() => ({}));
@@ -394,65 +646,189 @@
       }
     });
 
-    // Email signup
-    const emailInput = document.getElementById('email-input');
-    const emailBtn   = document.getElementById('email-btn');
-    const emailMsg   = document.getElementById('email-msg');
+    // Waitlist: the private web, with our own form built from waitlist-form.json
+    // (the structure exported from the CryptPad form: questions, notes and show/hide sections)
+    const privateView  = document.getElementById('private-view');
+    const waitlistForm = document.getElementById('waitlist-form');
+    const sendBtn      = document.getElementById('send-btn');
+    const wfError      = document.getElementById('wf-error');
+    let formDef = null;
 
-    emailBtn.addEventListener('click', async () => {
-      const email = emailInput.value.trim();
-      if (!email) return;
-      emailBtn.disabled = true;
-      emailMsg.className = '';
-      emailMsg.textContent = '';
-      try {
-        const res = await fetch('/api/email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email })
+    fetch('/waitlist-form.json').then(r => r.json()).then(def => { formDef = def; buildWaitlistForm(); });
+
+    function escapeHtml(t) {
+      return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // The notes only use **bold** and line breaks
+    function noteHtml(text) {
+      return escapeHtml(text).split('\n\n')
+        .map(p => '<p>' + p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>') + '</p>')
+        .join('');
+    }
+
+    function buildItem(id, parent) {
+      const item = formDef.form[id];
+      if (item.type === 'md') {
+        const note = document.createElement('div');
+        note.className = 'wf-note';
+        note.innerHTML = noteHtml(item.opts.text);
+        parent.appendChild(note);
+      } else if (item.type === 'section') {
+        const section = document.createElement('div');
+        section.className = 'wf-section';
+        section.dataset.id = id;
+        section.hidden = true;
+        item.opts.questions.forEach(q => buildItem(q, section));
+        parent.appendChild(section);
+      } else if (item.type === 'input') {
+        const field = document.createElement('label');
+        field.className = 'wf-q';
+        field.dataset.id = id;
+        const title = document.createElement('span');
+        title.textContent = item.q;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.name = id;
+        input.maxLength = 200;
+        field.append(title, input);
+        parent.appendChild(field);
+      } else {
+        const field = document.createElement('fieldset');
+        field.className = 'wf-q';
+        field.dataset.id = id;
+        if (item.opts.max) field.dataset.max = item.opts.max;
+        const legend = document.createElement('legend');
+        legend.textContent = item.q;
+        field.appendChild(legend);
+        item.opts.values.forEach(opt => {
+          const label = document.createElement('label');
+          label.className = 'wf-opt';
+          const input = document.createElement('input');
+          input.type = item.type;
+          input.name = id;
+          input.value = opt.v;
+          const text = document.createElement('span');
+          text.textContent = opt.v;
+          label.append(input, text);
+          field.appendChild(label);
         });
-        if (res.ok) {
-          document.getElementById('confirm-view').style.display = 'none';
-          const emailConfirm = document.getElementById('email-confirm-view');
-          emailConfirm.style.display = 'block';
-          const countdown = document.getElementById('email-confirm-countdown');
-          let secs = 15;
-          countdown.textContent = `> returning in ${secs}s`;
-          const timer = setInterval(() => {
-            secs--;
-            countdown.textContent = `> returning in ${secs}s`;
-            if (secs <= 0) { clearInterval(timer); resetToForm(); }
-          }, 1000);
-        } else {
-          emailMsg.className = 'err';
-          emailMsg.textContent = '! invalid email address.';
-          emailBtn.disabled = false;
-        }
-      } catch {
-        emailMsg.className = 'err';
-        emailMsg.textContent = '! network error. try again.';
-        emailBtn.disabled = false;
+        parent.appendChild(field);
       }
+    }
+
+    function buildWaitlistForm() {
+      waitlistForm.innerHTML = '';
+      wfError.hidden = true;
+      formDef.order.forEach(id => buildItem(id, waitlistForm));
+      updateWaitlistForm();
+    }
+
+    function isShown(el) {
+      return !el.closest('.wf-section[hidden]');
+    }
+
+    // Answer of a question as a list of values; empty when it is hidden
+    function answerOf(id) {
+      const field = waitlistForm.querySelector('.wf-q[data-id="' + id + '"]');
+      if (!field || !isShown(field)) return [];
+      return [...field.querySelectorAll('input')]
+        .filter(i => i.type === 'text' ? i.value.trim() : i.checked)
+        .map(i => i.type === 'text' ? i.value.trim() : i.value);
+    }
+
+    // A section shows when any of its "when" groups has all of its conditions met
+    function updateWaitlistForm() {
+      waitlistForm.querySelectorAll('.wf-section').forEach(section => {
+        const when = formDef.form[section.dataset.id].opts.when;
+        section.hidden = !when.some(group => group.every(c => answerOf(String(c.q)).includes(c.v)));
+      });
+      waitlistForm.querySelectorAll('.wf-q[data-max]').forEach(field => {
+        const full = field.querySelectorAll('input:checked').length >= Number(field.dataset.max);
+        field.querySelectorAll('input').forEach(i => { i.disabled = full && !i.checked; });
+      });
+    }
+
+    waitlistForm.addEventListener('change', e => {
+      e.target.closest('.wf-q').classList.remove('wf-missing');
+      updateWaitlistForm();
+    });
+    waitlistForm.addEventListener('input', e => e.target.closest('.wf-q').classList.remove('wf-missing'));
+    // Enter in a text field must not reload the page
+    waitlistForm.addEventListener('submit', e => e.preventDefault());
+
+    document.getElementById('waitlist-btn').addEventListener('click', () => {
+      if (formDef) buildWaitlistForm();
+      privateView.style.display = 'block';
+      privateView.scrollTop = 0;
     });
 
-    emailInput.addEventListener('keydown', e => { if (e.key === 'Enter') emailBtn.click(); });
+    // Leaving without signing up: back to page 1, nothing saved
+    document.getElementById('form-close').addEventListener('click', resetToForm);
+
+    sendBtn.addEventListener('click', async () => {
+      const answers = {};
+      let firstMissing = null;
+      waitlistForm.querySelectorAll('.wf-q').forEach(field => {
+        field.classList.remove('wf-missing');
+        if (!isShown(field)) return;
+        const id = field.dataset.id;
+        const item = formDef.form[id];
+        const values = answerOf(id);
+        if (item.opts.required && !values.length) {
+          field.classList.add('wf-missing');
+          firstMissing = firstMissing || field;
+        }
+        if (values.length) answers[id] = item.type === 'checkbox' ? values : values[0];
+      });
+      if (firstMissing) {
+        firstMissing.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      sendBtn.disabled = true;
+      wfError.hidden = true;
+      try {
+        const res = await fetch('/api/waitlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ answers })
+        });
+        if (res.ok) {
+          resetToForm();
+        } else {
+          // e.g. "Please check your e-mail address." when the contact doesn't fit the channel
+          const body = await res.json().catch(() => ({}));
+          wfError.textContent = res.status === 400 && body.error ? body.error : "Couldn't save your answers. Please try again.";
+          wfError.hidden = false;
+        }
+      } catch {
+        wfError.textContent = "Couldn't save your answers. Please try again.";
+        wfError.hidden = false;
+      }
+      sendBtn.disabled = false;
+    });
 
     function resetToForm() {
       textarea.value = '';
       counter.textContent = '0';
       btn.disabled = false;
-      emailInput.value = '';
-      emailInput.disabled = false;
-      emailBtn.disabled = false;
-      emailMsg.textContent = '';
-      emailMsg.className = '';
-      document.getElementById('email-signup').style.opacity = '0';
-      document.getElementById('email-signup').style.display = '';
+      // Clear the form so the next visitor gets a fresh one
+      if (formDef) buildWaitlistForm();
+      privateView.style.display   = 'none';
+      document.getElementById('waitlist-signup').style.opacity = '0';
       document.getElementById('confirm-cta').style.opacity = '0';
       document.getElementById('confirm-view').style.display = 'none';
-      document.getElementById('email-confirm-view').style.display = 'none';
       document.getElementById('form-view').style.display = 'block';
+      document.getElementById('page-title').textContent = 'Make your Privacy Confession';
+      document.body.classList.add('web');
+      cookieBanner.style.display = '';
     }
+
+    // Fake cookie banner: either button only closes it, nothing is stored
+    const cookieBanner = document.getElementById('cookie-banner');
+    cookieBanner.querySelectorAll('button').forEach(b => {
+      b.addEventListener('click', () => { cookieBanner.style.display = 'none'; });
+    });
 
     document.getElementById('no-vpn-btn').addEventListener('click', () => {
       resetToForm();
